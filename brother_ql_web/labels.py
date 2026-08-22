@@ -243,10 +243,7 @@ def _determine_text_offsets(
         horizontal_offset_value = horizontal_offset()
     elif parameters.orientation == "rotated":
         vertical_offset_value = vertical_offset("center")
-        if parameters.kind in CONTINUOUS_FORM_FACTORS:
-            horizontal_offset_value = parameters.effective_margin_left
-        else:
-            horizontal_offset_value = horizontal_offset()
+        horizontal_offset_value = horizontal_offset()
     return horizontal_offset_value, vertical_offset_value
 
 

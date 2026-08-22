@@ -328,12 +328,9 @@
         const orientation = getSelectedRadioButton('orientation', 'standard');
         const loaded = currentPrinterStatus && currentPrinterStatus.media_label_size;
         const continuous = Boolean(loaded && selectedLabelSize && selectedLabelSize.continuous);
-        const horizontalEnabled = !(continuous && orientation === 'rotated');
+        const horizontalEnabled = true;
         const verticalEnabled = !(continuous && orientation === 'standard');
 
-        if (!horizontalEnabled) {
-            setRadioButton('fontAlign', 'left');
-        }
         if (!verticalEnabled) {
             setRadioButton('verticalAlign', 'top');
         }
