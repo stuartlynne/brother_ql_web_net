@@ -139,6 +139,31 @@ class ConfigurationTestCase(TestCase):
             with self.assertRaisesRegex(ValueError, r"^Printer configuration missing$"):
                 Configuration.from_json(json_file.name)
 
+    def test_from_json__printers(self) -> None:
+        with NamedTemporaryFile(suffix=".json", mode="w+t") as json_file:
+            data = self.example_json
+            del data["printer"]
+            data["printers"] = [
+                {
+                    "id": "left",
+                    "name": "Left",
+                    "model": "QL-710W",
+                    "printer": "tcp://192.0.2.1:9100",
+                },
+                {
+                    "id": "right",
+                    "name": "Right",
+                    "model": "QL-1060N",
+                    "printer": "tcp://192.0.2.2:9100",
+                },
+            ]
+            json_file.write(json.dumps(data))
+            json_file.seek(0)
+
+            configuration = Configuration.from_json(json_file.name)
+            self.assertEqual("left", configuration.printer.identifier)
+            self.assertEqual("Right", configuration.printer_by_id("right").display_name)
+
     def test_to_json(self) -> None:
         with NamedTemporaryFile(suffix=".json", mode="w+t") as json_file:
             json_file.write(CUSTOM_CONFIGURATION)
@@ -180,6 +205,14 @@ class LabelConfigurationTestCase(TestCase):
                 Font(family="Another font family", style="Bold"),
             ],
             configuration.default_fonts,
+        )
+
+    def test_orientation_aliases(self) -> None:
+        self.assertEqual(
+            "standard", LabelConfiguration(default_orientation="landscape").default_orientation
+        )
+        self.assertEqual(
+            "rotated", LabelConfiguration(default_orientation="portrait").default_orientation
         )
 
 

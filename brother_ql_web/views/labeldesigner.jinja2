@@ -16,25 +16,45 @@
                 <div class="card-group" id="accordion">
                     <div class="col-md-12">
                         <div class="card">
+                            <div class="card-header" id="headingPrinter">
+                                <h4 class="card-title">
+                                    <button class="btn" data-bs-toggle="collapse" data-bs-target="#collapsePrinter" aria-expanded="true" aria-controls="collapsePrinter">
+                                        <span class="bi-printer-fill" aria-hidden="true"></span> Printer
+                                    </button>
+                                </h4>
+                            </div>
+                            <div id="collapsePrinter" class="collapse show" aria-labelledby="headingPrinter" data-parent="#accordion">
+                                <div class="chooser card-body">
+                                    <label for="printerSelect">Printer:</label>
+                                    <select class="form-control" id="printerSelect" onChange="onPrinterChanged()">
+                                        {% for printer in printers %}<option value="{{ printer.id }}">{{ printer.name }}</option>{% endfor %}
+                                    </select>
+                                    <div id="printerStatusPanel" class="printer-status-panel" aria-live="polite">
+                                        <div class="text-muted">Checking printer status...</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-12">
+                        <div class="card">
                             <div class="card-header" id="headingLabelSize">
                                 <h4 class="card-title">
-                                    <button class="btn" data-bs-toggle="collapse" data-bs-target="#collapseLabelSize" aria-expanded="false" aria-controls="collapseLabelSize">
+                                    <button class="btn" data-bs-toggle="collapse" data-bs-target="#collapseLabelSize" aria-expanded="true" aria-controls="collapseLabelSize">
                                         <span class="bi-file-earmark-fill" aria-hidden="true"></span> Label Size
                                     </button>
                                 </h4>
                             </div>
-                            <div id="collapseLabelSize" class="collapse" aria-labelledby="headingLabelSize" data-parent="#accordion">
+                            <div id="collapseLabelSize" class="collapse show" aria-labelledby="headingLabelSize" data-parent="#accordion">
                                 <div class="chooser card-body">
                                     <label for="labelSize" style="display: none">Label Size:</label>
                                     <select class="form-control" id="labelSize" onChange="preview()">
                                             {% for label_size in label_sizes %}<option value="{{label_size[0]}}" {% if label.default_size == label_size[0] %}selected{% endif %}>{{label_size[1]}}</option>{% endfor %}
                                         </select>
                                     <label for="orientation" style="margin-top: 10px; margin-bottom: 0">Label Orientation:</label>
-                                    <div class="radio" style="margin-top: 5px;">
-                                        <label><input type="radio" onchange="preview()" name="orientation" value="standard" {% if default_orientation == 'standard' %}checked{% endif %}>Standard</label>
-                                    </div>
-                                    <div class="radio">
-                                        <label><input type="radio" onchange="preview()" name="orientation" value="rotated" {% if default_orientation == 'rotated' %}checked{% endif %}>Rotated</label>
+                                    <div class="orientation-options" id="orientation">
+                                        <label><input type="radio" onchange="preview()" name="orientation" value="standard" {% if default_orientation == 'standard' %}checked{% endif %}> Landscape</label>
+                                        <label><input type="radio" onchange="preview()" name="orientation" value="rotated" {% if default_orientation == 'rotated' %}checked{% endif %}> Portrait</label>
                                     </div>
                                 </div>
                             </div>
@@ -62,7 +82,7 @@
                                     <label for="fontSize">Font Size:</label>
                                     <input id="fontSize" class="form-control" type="number" min="1" value="{{ label.default_font_size }}" onChange="preview()" required>
                                     <label for="fontAlign" class="control-label input-group">Font Alignment:</label>
-                                    <div class="btn-group" data-toggle="buttons">
+                                    <div class="btn-group" id="fontAlign" data-toggle="buttons">
                                         <label class="btn btn-default">
                                             <input type="radio" name="fontAlign" onchange="preview()" value="left" aria-label="Left Align"><span class="bi-text-left" aria-hidden="true"></span>
                                         </label>
@@ -71,6 +91,18 @@
                                         </label>
                                         <label class="btn btn-default">
                                             <input type="radio" name="fontAlign" onchange="preview()" value="right" aria-label="Right Align"><span class="bi-text-right" aria-hidden="true"></span>
+                                        </label>
+                                    </div>
+                                    <label for="verticalAlign" class="control-label input-group">Vertical Alignment:</label>
+                                    <div class="btn-group" id="verticalAlign" data-toggle="buttons">
+                                        <label class="btn btn-default">
+                                            <input type="radio" name="verticalAlign" onchange="preview()" value="top" aria-label="Top Align"><span class="bi-align-top" aria-hidden="true"></span>
+                                        </label>
+                                        <label class="btn btn-default active">
+                                            <input type="radio" name="verticalAlign" onchange="preview()" value="center" aria-label="Middle Align" checked=""><span class="bi-align-middle" aria-hidden="true"></span>
+                                        </label>
+                                        <label class="btn btn-default">
+                                            <input type="radio" name="verticalAlign" onchange="preview()" value="bottom" aria-label="Bottom Align"><span class="bi-align-bottom" aria-hidden="true"></span>
                                         </label>
                                     </div>
                                 </div>
@@ -115,15 +147,20 @@
                             <h4 class="card-title">
                                 <button class="btn" data-bs-toggle="collapse" data-bs-target="#collapseAmount" aria-expanded="false" aria-controls="collapseAmount">
                                     <span class="bi-repeat" aria-hidden="true"></span> Amount
-                                </a>
+                                </button>
                             </h4>
                         </div>
                         <div id="collapseAmount" class="collapse" aria-labelledby="headingAmount" data-parent="#accordion">
                             <div class="chooser card-body">
                                 <label for="labelCount">Label Count:</label>
                                 <div class="input-group labelCount">
-                                    <input id="labelCount" class="form-control" type="number" min="1" max="200" value="1" required>
+                                    <input id="labelCount" class="form-control" type="number" min="1" max="200" value="1" onChange="preview()" required>
                                 </div>
+                                <label for="cutMode" style="margin-top: 10px;">Cut:</label>
+                                <select class="form-control" id="cutMode" onChange="preview()">
+                                    <option value="each" selected>After each label</option>
+                                    <option value="last">After last label</option>
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -134,7 +171,7 @@
                             <h4 class="card-title">
                                 <button class="btn" data-bs-toggle="collapse" data-bs-target="#collapseQuality" aria-expanded="false" aria-controls="collapseQuality">
                                     <span class="bi-badge-hd-fill" aria-hidden="true"></span> Quality
-                                </a>
+                                </button>
                             </h4>
                         </div>
                         <div id="collapseQuality" class="collapse" aria-labelledby="headingQuality" data-parent="#accordion">
@@ -158,7 +195,7 @@
             <fieldset class="form-group">
                 <label for="previewImg">Label Preview:</label><br />
                 <img id="previewImg" style="border: 1px solid #444; max-height: 350px; width: auto; max-width: 100%; margin-bottom: 10px;" />
-                <p>Printed size w/o margins: <span id="labelWidth">?</span> cm x <span id="labelHeight">?</span> cm</p>
+                <p>Printed size w/o margins: <span id="labelWidth">?</span> cm x <span id="labelHeight">?</span> cm<span id="labelPages"></span></p>
                 <button id="printButton" type="button" class="btn btn-primary btn-block btn-lg" onClick="print()">
               <span class="bi-printer-fill" aria-hidden="true"></span> Print
             </button>
@@ -176,6 +213,12 @@
 {% endblock %}
 
 {% block javascript %}
+    const PRINTERS = {{ printers_json | safe }};
+    const DEFAULT_LABEL_SIZE = {{ label.default_size | tojson }};
+    const SETTINGS_KEY = 'brother_ql_web.labeldesigner.settings';
+    let currentPrinterStatus = null;
+    let printerStatusTimer = null;
+
     function getValue(id) {
         return document.getElementById(id).value;
     }
@@ -197,6 +240,245 @@
         return document.getElementById(id).checked;
     }
 
+    function getPrinter() {
+        const printerId = getSelectedOption('printerSelect');
+        return PRINTERS.find(function(printer) { return printer.id === printerId; }) || PRINTERS[0];
+    }
+
+    function getSelectedLabelSize() {
+        const printer = getPrinter();
+        const labelSize = getSelectedOption('labelSize');
+        if (!printer) {
+            return null;
+        }
+        return printer.label_sizes.find(function(size) { return size.id === labelSize; }) || null;
+    }
+
+    function getSavedSettings() {
+        try {
+            return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function saveSettings() {
+        const settings = {
+            printer_id: getSelectedOption('printerSelect'),
+            label_size: getSelectedOption('labelSize'),
+            font_family: getSelectedOption('fontFamily'),
+            font_size: getValue('fontSize'),
+            align: getSelectedRadioButton('fontAlign', 'center'),
+            vertical_align: getSelectedRadioButton('verticalAlign', 'center'),
+            orientation: getSelectedRadioButton('orientation', 'standard'),
+            margin_top: getValue('marginTop'),
+            margin_bottom: getValue('marginBottom'),
+            margin_left: getValue('marginLeft'),
+            margin_right: getValue('marginRight'),
+            label_count: getValue('labelCount'),
+            cut_mode: getSelectedOption('cutMode'),
+            high_quality: isChecked('highQuality'),
+            text: getValue('labelText')
+        };
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    }
+
+    function setRadioButton(name, value) {
+        const selector = document.querySelector('input[name="' + name + '"][value="' + value + '"]');
+        if (selector) {
+            selector.checked = true;
+        }
+        updateRadioButtonGroup(name);
+    }
+
+    function updateRadioButtonGroup(name) {
+        const buttons = document.querySelectorAll('input[name="' + name + '"]');
+        for (const button of buttons) {
+            const label = button.closest('label');
+            if (!label) {
+                continue;
+            }
+            if (button.checked) {
+                label.classList.add('active');
+            } else {
+                label.classList.remove('active');
+            }
+        }
+    }
+
+    function updateRadioButtonGroups() {
+        updateRadioButtonGroup('fontAlign');
+        updateRadioButtonGroup('verticalAlign');
+        updateRadioButtonGroup('orientation');
+    }
+
+    function setRadioButtonGroupEnabled(name, enabled) {
+        const buttons = document.querySelectorAll('input[name="' + name + '"]');
+        for (const button of buttons) {
+            const label = button.closest('label');
+            button.disabled = !enabled;
+            if (label) {
+                label.classList.toggle('disabled', !enabled);
+            }
+        }
+    }
+
+    function updateContinuousRollControls() {
+        const selectedLabelSize = getSelectedLabelSize();
+        const orientation = getSelectedRadioButton('orientation', 'standard');
+        const loaded = currentPrinterStatus && currentPrinterStatus.media_label_size;
+        const continuous = Boolean(loaded && selectedLabelSize && selectedLabelSize.continuous);
+        const horizontalEnabled = !(continuous && orientation === 'rotated');
+        const verticalEnabled = !(continuous && orientation === 'standard');
+
+        if (!horizontalEnabled) {
+            setRadioButton('fontAlign', 'left');
+        }
+        if (!verticalEnabled) {
+            setRadioButton('verticalAlign', 'top');
+        }
+        setRadioButtonGroupEnabled('fontAlign', horizontalEnabled);
+        setRadioButtonGroupEnabled('verticalAlign', verticalEnabled);
+        updateRadioButtonGroups();
+    }
+
+    function setInputValue(id, value) {
+        if (value !== undefined && value !== null) {
+            document.getElementById(id).value = value;
+        }
+    }
+
+    function restoreSettings() {
+        const settings = getSavedSettings();
+        if (settings.printer_id) {
+            const printerSelect = document.getElementById('printerSelect');
+            for (const option of printerSelect.options) {
+                if (option.value === settings.printer_id) {
+                    printerSelect.value = settings.printer_id;
+                    break;
+                }
+            }
+        }
+        setInputValue('fontFamily', settings.font_family);
+        setInputValue('fontSize', settings.font_size);
+        setRadioButton('fontAlign', settings.align);
+        setRadioButton('verticalAlign', settings.vertical_align);
+        setRadioButton('orientation', settings.orientation);
+        setInputValue('marginTop', settings.margin_top);
+        setInputValue('marginBottom', settings.margin_bottom);
+        setInputValue('marginLeft', settings.margin_left);
+        setInputValue('marginRight', settings.margin_right);
+        setInputValue('labelCount', settings.label_count);
+        setInputValue('cutMode', settings.cut_mode);
+        setInputValue('labelText', settings.text);
+        if (settings.high_quality !== undefined) {
+            document.getElementById('highQuality').checked = Boolean(settings.high_quality);
+        }
+        resizeTextBox();
+    }
+
+    function resizeTextBox() {
+        const textBox = document.getElementById('labelText');
+        textBox.style.height = 'auto';
+        textBox.style.height = textBox.scrollHeight + 'px';
+    }
+
+    function populateLabelSizes(preferredLabelSize) {
+        const printer = getPrinter();
+        const labelSize = document.getElementById('labelSize');
+        const previous = preferredLabelSize || labelSize.value || DEFAULT_LABEL_SIZE;
+        const loaded = currentPrinterStatus && currentPrinterStatus.media_label_size;
+        const selected = loaded || previous;
+        labelSize.replaceChildren();
+
+        for (const size of printer.label_sizes) {
+            const option = document.createElement('option');
+            option.value = size.id;
+            option.textContent = size.name;
+            if (loaded && loaded === size.id) {
+                option.textContent += ' (loaded)';
+            }
+            if (size.id === selected) {
+                option.selected = true;
+            }
+            labelSize.appendChild(option);
+        }
+
+        if (labelSize.selectedIndex < 0 && labelSize.options.length > 0) {
+            labelSize.selectedIndex = 0;
+        }
+        return labelSize.value !== previous;
+    }
+
+    function renderPrinterStatus(status) {
+        currentPrinterStatus = status;
+        const panel = document.getElementById('printerStatusPanel');
+        panel.replaceChildren();
+
+        const box = document.createElement('div');
+        box.className = status.ok ? 'alert alert-success' : 'alert alert-warning';
+
+        const icon = document.createElement('i');
+        icon.className = status.ok ? 'bi-check-square' : 'bi-exclamation-triangle-fill';
+        box.appendChild(icon);
+
+        const text = document.createElement('span');
+        const lines = [];
+        lines.push(status.status || 'UNKNOWN');
+        if (status.media) {
+            lines.push('Media: ' + status.media);
+        }
+        if (status.page_count) {
+            lines.push('Page count: ' + status.page_count);
+        }
+        if (status.error) {
+            lines.push(status.error);
+        }
+        text.textContent = lines.join(' | ');
+        box.appendChild(text);
+        panel.appendChild(box);
+    }
+
+    function refreshPrinters() {
+        const request = new XMLHttpRequest();
+        request.addEventListener('load', function() {
+            const response = JSON.parse(this.response);
+            const selectedPrinter = getSelectedOption('printerSelect');
+            const printer = response.printers.find(function(item) {
+                return item.id === selectedPrinter;
+            });
+            if (printer) {
+                const localPrinter = PRINTERS.find(function(item) {
+                    return item.id === selectedPrinter;
+                });
+                if (localPrinter) {
+                    localPrinter.status = printer.status;
+                }
+                renderPrinterStatus(printer.status);
+                const changed = populateLabelSizes();
+                updateContinuousRollControls();
+                saveSettings();
+                if (changed) {
+                    preview();
+                }
+            }
+        });
+        request.open('GET', '/api/printers');
+        request.send();
+    }
+
+    function onPrinterChanged() {
+        currentPrinterStatus = null;
+        populateLabelSizes(getSavedSettings().label_size);
+        const printer = getPrinter();
+        if (printer && printer.status) {
+            renderPrinterStatus(printer.status);
+        }
+        saveSettings();
+        refreshPrinters();
+        preview();
+    }
+
     function formData() {
         var text = getValue('labelText');
         if (text == '') {
@@ -206,64 +488,55 @@
         const fontSize = getValue('fontSize');
         const labelSize = getSelectedOption('labelSize');
         const align = getSelectedRadioButton('fontAlign', 'center');
+        const verticalAlign = getSelectedRadioButton('verticalAlign', 'center');
         const orientation = getSelectedRadioButton('orientation', 'standard');
         const marginTop = getValue('marginTop');
         const marginBottom = getValue('marginBottom');
         const marginLeft = getValue('marginLeft');
         const marginRight = getValue('marginRight');
         const labelCount = getValue('labelCount');
+        const cutMode = getSelectedOption('cutMode');
         const highQuality = isChecked('highQuality');
+        const printerId = getSelectedOption('printerSelect');
 
         const data = new FormData();
+        data.append('printer_id', printerId);
         data.append('text', text);
         data.append('font_family', fontFamily);
         data.append('font_size', fontSize);
         data.append('label_size', labelSize);
         data.append('align', align);
+        data.append('vertical_align', verticalAlign);
         data.append('orientation', orientation);
         data.append('margin_top', marginTop);
         data.append('margin_bottom', marginBottom);
         data.append('margin_left', marginLeft);
         data.append('margin_right', marginRight);
         data.append('label_count', labelCount);
+        data.append('cut_mode', cutMode);
         data.append('high_quality', highQuality);
         return data;
     }
 
     function setPreviewImage(response) {
         const img = document.getElementById('previewImg');
+        const labelWidth = response.getResponseHeader('X-Label-Width');
+        const labelHeight = response.getResponseHeader('X-Label-Height');
+        const labelPages = parseInt(response.getResponseHeader('X-Label-Pages') || '1', 10);
         img.setAttribute('src', 'data:image/png;base64,' + response.response);
         img.onload = function() {
-            document.getElementById('labelWidth').innerHTML = (img.naturalWidth / 300 * 2.54).toFixed(1);
-            document.getElementById('labelHeight').innerHTML = (img.naturalHeight /300 * 2.54).toFixed(1);
+            const width = labelWidth || img.naturalWidth;
+            const height = labelHeight || img.naturalHeight;
+            document.getElementById('labelWidth').innerHTML = (width / 300 * 2.54).toFixed(1);
+            document.getElementById('labelHeight').innerHTML = (height / 300 * 2.54).toFixed(1);
+            document.getElementById('labelPages').innerHTML = labelPages > 1 ? ' x ' + labelPages + ' pages' : '';
         };
     }
 
     function preview() {
-        const marginsTopBottom = document.getElementsByClassName('marginsTopBottom');
-        const marginsLeftRight = document.getElementsByClassName('marginsLeftRight');
-
-        function enable(elements) {
-            for (const element of elements) {
-                element.removeAttribute('disabled');
-                element.removeAttribute('title');
-            }
-        }
-
-        function disable(elements, orientation) {
-            for (const element of elements) {
-                element.disabled = true;
-                element.setAttribute('title', 'Only relevant if ' + orientation + ' orientation is selected.');
-            }
-        }
-
-        if (getSelectedRadioButton('orientation', 'standard') == 'standard') {
-            enable(marginsTopBottom);
-            disable(marginsLeftRight, 'rotated');
-        } else {
-            enable(marginsLeftRight);
-            disable(marginsTopBottom, 'standard');
-        }
+        resizeTextBox();
+        updateContinuousRollControls();
+        saveSettings();
 
         const request = new XMLHttpRequest();
         request.addEventListener('load', function() {
@@ -276,7 +549,8 @@
 
     function setStatus(data) {
         if (data.success) {
-            document.getElementById('statusPanel').innerHTML = '<div id="statusBox" class="alert alert-success" role="alert"><i class="bi-check-square"></i><span>Printing was successful.</span></div>';
+            const message = data.message || 'Printing was sent.';
+            document.getElementById('statusPanel').innerHTML = '<div id="statusBox" class="alert alert-success" role="alert"><i class="bi-check-square"></i><span>' + message + '</span></div>';
         } else {
             /* TODO: https://developer.mozilla.org/en-US/docs/Web/API/Element/setHTML#browser_compatibility */
             document.getElementById('statusPanel').innerHTML = '<div id="statusBox" class="alert alert-warning" role="alert"><i class="bi-exclamation-triangle-fill"></i><span>Printing was unsuccessful:<br />' + data.message + '</span></div>';
@@ -285,8 +559,9 @@
     }
 
     function print() {
+        saveSettings();
         document.getElementById('printButton').setAttribute('disabled', true);
-        document.getElementById('statusPanel').innerHTML = '<div id="statusBox" class="alert alert-info" role="alert"><i class="bi-hourglass"></i><span>Processing print request...</span></div>';
+        document.getElementById('statusPanel').innerHTML = '<div id="statusBox" class="alert alert-info" role="alert"><i class="bi-hourglass"></i><span>Waiting for printer...</span></div>';
 
         const request = new XMLHttpRequest();
         request.addEventListener('load', function() {
@@ -300,6 +575,14 @@
         request.send(formData());
     }
 
+    restoreSettings();
+    updateRadioButtonGroups();
+    populateLabelSizes(getSavedSettings().label_size);
+    if (getPrinter() && getPrinter().status) {
+        renderPrinterStatus(getPrinter().status);
+    }
+    refreshPrinters();
+    printerStatusTimer = window.setInterval(refreshPrinters, 2000);
     preview();
 
 {% endblock %}

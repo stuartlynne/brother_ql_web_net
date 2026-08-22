@@ -2,6 +2,30 @@
     margin-bottom: 0;
 }
 
+.printer-status-panel {
+    margin-top: 10px;
+}
+
+.printer-status-panel .alert {
+    margin-bottom: 0;
+}
+
+.orientation-options {
+    display: flex;
+    gap: 16px;
+    margin-top: 5px;
+}
+
+.btn-group .btn.active {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+}
+
+.btn-group .btn.disabled {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
 .alert {
     display: table-cell;
 }

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+import json
 from io import BytesIO
 from pathlib import Path
+from time import sleep, time
 from typing import Any, cast
 
 import bottle
@@ -11,17 +13,22 @@ from brother_ql import BrotherQLRaster
 from brother_ql_web.configuration import Configuration
 from brother_ql_web.labels import (
     LabelParameters,
-    create_label_image,
+    combine_preview_images,
+    create_label_images,
     image_to_png_bytes,
     generate_label,
     print_label,
 )
+from brother_ql_web.printers import PrinterStatus, PrinterStatusCache, printer_payload, read_status
+from brother_ql_web import utils
 from brother_ql_web.utils import BACKEND_TYPE
 
 logger = logging.getLogger(__name__)
 del logging
 
 CURRENT_DIRECTORY = Path(__file__).parent
+PRINT_WAIT_TIMEOUT_SECONDS = 30.0
+PRINT_WAIT_INTERVAL_SECONDS = 0.5
 
 
 def get_config(key: str) -> object:
@@ -44,10 +51,16 @@ def labeldesigner() -> dict[str, Any]:
     fonts = cast(dict[str, dict[str, str]], get_config("brother_ql_web.fonts"))
     font_family_names = sorted(list(fonts.keys()))
     configuration = cast(Configuration, get_config("brother_ql_web.configuration"))
+    status_cache = cast(
+        PrinterStatusCache | None, get_config("brother_ql_web.status_cache")
+    )
+    printers = printer_payload(configuration=configuration, status_cache=status_cache)
     return {
         "font_family_names": font_family_names,
         "fonts": fonts,
         "label_sizes": get_config("brother_ql_web.label_sizes"),
+        "printers": printers,
+        "printers_json": json.dumps(printers),
         "website": configuration.website,
         "label": configuration.label,
         "default_orientation": configuration.label.default_orientation,
@@ -93,6 +106,18 @@ def get_label_parameters(
                 "where Roboto is the family name and Medium the corresponding font "
                 "style."
             )
+    configuration = cast(
+        Configuration, request.app.config["brother_ql_web.configuration"]
+    )
+    selected_printer = configuration.printer_by_id(d.get("printer_id"))
+    selected_configuration = Configuration(
+        server=configuration.server,
+        printer=selected_printer,
+        label=configuration.label,
+        website=configuration.website,
+        printers=configuration.printers,
+    )
+
     context = {
         "text": d.get("text", ""),
         "image": _save_to_bytes(request.files.get("image")),
@@ -104,24 +129,41 @@ def get_label_parameters(
         "margin": int(d.get("margin", 10)),
         "threshold": int(d.get("threshold", 70)),
         "align": d.get("align", "center"),
+        "vertical_align": d.get("vertical_align", "auto"),
         "orientation": d.get("orientation", "standard"),
         "margin_top": int(d.get("margin_top", 24)),
         "margin_bottom": int(d.get("margin_bottom", 45)),
         "margin_left": int(d.get("margin_left", 35)),
         "margin_right": int(d.get("margin_right", 35)),
         "label_count": int(d.get("label_count", 1)),
+        "cut_mode": d.get("cut_mode", "each"),
         "high_quality": bool(d.get("high_quality", False)),  # TODO: Enable by default.
-        "configuration": request.app.config["brother_ql_web.configuration"],
+        "configuration": selected_configuration,
     }
 
     return LabelParameters(**context)
+
+
+@bottle.get("/api/printers")  # type: ignore[untyped-decorator]
+def get_printers() -> dict[str, Any]:
+    configuration = cast(Configuration, get_config("brother_ql_web.configuration"))
+    status_cache = cast(
+        PrinterStatusCache | None, get_config("brother_ql_web.status_cache")
+    )
+    return {"printers": printer_payload(configuration, status_cache)}
 
 
 @bottle.get("/api/preview/text")  # type: ignore[untyped-decorator]
 @bottle.post("/api/preview/text")  # type: ignore[untyped-decorator]
 def get_preview_image() -> bytes:
     parameters = get_label_parameters(bottle.request)
-    image = create_label_image(parameters=parameters)
+    images = create_label_images(parameters=parameters)
+    page_count = len(images)
+    page_width, page_height = images[0].size
+    image = combine_preview_images(images)
+    bottle.response.set_header("X-Label-Pages", str(page_count))
+    bottle.response.set_header("X-Label-Width", str(page_width))
+    bottle.response.set_header("X-Label-Height", str(page_height))
     return_format = bottle.request.query.get("return_format", "png")
     if return_format == "base64":
         import base64
@@ -155,7 +197,7 @@ def print_text() -> dict[str, bool | str]:
 
     qlr = generate_label(
         parameters=parameters,
-        configuration=cast(Configuration, get_config("brother_ql_web.configuration")),
+        configuration=parameters.configuration,
         save_image_to="sample-out.png" if bottle.DEBUG else None,
     )
 
@@ -183,7 +225,7 @@ def print_image() -> dict[str, bool | str]:
 
     qlr = generate_label(
         parameters=parameters,
-        configuration=cast(Configuration, get_config("brother_ql_web.configuration")),
+        configuration=parameters.configuration,
     )
 
     return _print(parameters=parameters, qlr=qlr)
@@ -193,17 +235,16 @@ def _print(parameters: LabelParameters, qlr: BrotherQLRaster) -> dict[str, bool 
     return_dict: dict[str, bool | str] = {"success": False}
 
     if not bottle.DEBUG:
+        preflight_error, waited = _wait_for_printer(parameters)
+        if preflight_error:
+            return_dict["message"] = preflight_error
+            return return_dict
         try:
             print_label(
                 parameters=parameters,
                 qlr=qlr,
-                configuration=cast(
-                    Configuration, get_config("brother_ql_web.configuration")
-                ),
-                backend_class=cast(
-                    BACKEND_TYPE,
-                    get_config("brother_ql_web.backend_class"),
-                ),
+                configuration=parameters.configuration,
+                backend_class=utils.get_backend_class(parameters.configuration),
             )
         except Exception as e:
             return_dict["message"] = str(e)
@@ -211,9 +252,65 @@ def _print(parameters: LabelParameters, qlr: BrotherQLRaster) -> dict[str, bool 
             return return_dict
 
     return_dict["success"] = True
+    return_dict["message"] = "Printing was sent." if not waited else "Printing was queued and sent."
     if bottle.DEBUG:
         return_dict["data"] = str(qlr.data)
     return return_dict
+
+
+def _wait_for_printer(parameters: LabelParameters) -> tuple[str, bool]:
+    printer = parameters.configuration.printer
+    if not printer.snmp_enabled or not printer.printer.startswith("tcp://"):
+        return "", False
+
+    waited = False
+    deadline = time() + PRINT_WAIT_TIMEOUT_SECONDS
+    while True:
+        status = _current_printer_status(parameters, fresh=waited)
+        error = _preflight_printer(parameters, status)
+        if not error:
+            return "", waited
+        if not status.busy:
+            return error, waited
+        if time() >= deadline:
+            return f"Printer is still busy: {status.status or 'UNKNOWN'}", waited
+        waited = True
+        sleep(PRINT_WAIT_INTERVAL_SECONDS)
+
+
+def _current_printer_status(
+    parameters: LabelParameters, fresh: bool = False
+) -> PrinterStatus:
+    printer = parameters.configuration.printer
+    status_cache = cast(
+        PrinterStatusCache | None, get_config("brother_ql_web.status_cache")
+    )
+    status = (
+        status_cache.get(printer)
+        if status_cache is not None and not fresh
+        else read_status(printer)
+    )
+    if not status.updated_at:
+        status = read_status(printer)
+    if status_cache and status.updated_at:
+        status_cache.statuses[printer.identifier] = status
+    return status
+
+
+def _preflight_printer(parameters: LabelParameters, status: PrinterStatus) -> str:
+    if not status.ok:
+        if status.busy:
+            return f"Printer is busy: {status.status}"
+        detail = status.error or status.status or "UNKNOWN"
+        return f"Printer is not ready: {detail}"
+
+    if status.media_label_size and status.media_label_size != parameters.label_size:
+        return (
+            "Loaded media does not match selected label size: "
+            f"{status.media or status.media_label_size} loaded, "
+            f"{parameters.label_size} selected"
+        )
+    return ""
 
 
 def main(
@@ -227,6 +324,9 @@ def main(
     app.config["brother_ql_web.fonts"] = fonts
     app.config["brother_ql_web.label_sizes"] = label_sizes
     app.config["brother_ql_web.backend_class"] = backend_class
+    status_cache = PrinterStatusCache(configuration.printers)
+    status_cache.start()
+    app.config["brother_ql_web.status_cache"] = status_cache
     bottle.TEMPLATE_PATH.append(CURRENT_DIRECTORY / "views")
     debug = configuration.server.is_in_debug_mode
     app.run(host=configuration.server.host, port=configuration.server.port, debug=debug)

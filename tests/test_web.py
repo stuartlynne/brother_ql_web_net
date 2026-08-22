@@ -13,6 +13,7 @@ from unittest import mock
 import requests
 from brother_ql_web import web
 from brother_ql_web.labels import LabelParameters
+from brother_ql_web.printers import PrinterStatus
 
 from tests import TestCase as _TestCase
 
@@ -114,6 +115,7 @@ class GetLabelParametersTestCase(TestCase):
             margin_left="37",
             margin_right="38",
             label_count="20",
+            cut_mode="last",
             high_quality="True",
         )
         request.app.config = {
@@ -138,6 +140,7 @@ class GetLabelParametersTestCase(TestCase):
                 margin_left=37,
                 margin_right=38,
                 label_count=20,
+                cut_mode="last",
                 high_quality=True,
                 image=b"",
                 pdf=b"",
@@ -285,6 +288,36 @@ class PrintTextTestCase(TestCase):
         self.assertEqual(b'{"success": true}', response.content)
         with open(cast(str, self.printer_file), mode="rb") as fd:
             self.assertEqual(expected, fd.read())
+
+
+class WaitForPrinterTestCase(TestCase):
+    def test_wait_for_busy_printer(self) -> None:
+        parameters = LabelParameters(configuration=self.example_configuration)
+        parameters.configuration.printer.printer = "tcp://127.0.0.1:9100"
+        statuses = [
+            PrinterStatus(printer_id="test", status="PRINTING", updated_at=1),
+            PrinterStatus(printer_id="test", status="READY", updated_at=2),
+        ]
+
+        with (
+            mock.patch.object(web, "PRINT_WAIT_INTERVAL_SECONDS", 0),
+            mock.patch.object(web, "_current_printer_status", side_effect=statuses),
+        ):
+            error, waited = web._wait_for_printer(parameters)
+
+        self.assertEqual("", error)
+        self.assertTrue(waited)
+
+    def test_wait_for_real_error(self) -> None:
+        parameters = LabelParameters(configuration=self.example_configuration)
+        parameters.configuration.printer.printer = "tcp://127.0.0.1:9100"
+        status = PrinterStatus(printer_id="test", status="COVER OPEN", updated_at=1)
+
+        with mock.patch.object(web, "_current_printer_status", return_value=status):
+            error, waited = web._wait_for_printer(parameters)
+
+        self.assertEqual("Printer is not ready: COVER OPEN", error)
+        self.assertFalse(waited)
 
 
 class PrintImageTestCase(TestCase):

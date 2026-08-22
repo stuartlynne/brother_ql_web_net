@@ -9,7 +9,7 @@ from typing import cast
 
 from brother_ql.labels import ALL_LABELS
 from brother_ql.models import ALL_MODELS
-from brother_ql_web.configuration import Configuration, Font
+from brother_ql_web.configuration import Configuration, Font, normalize_orientation
 from brother_ql_web.utils import collect_fonts
 
 logger = logging.getLogger(__name__)
@@ -38,10 +38,10 @@ def get_parameters() -> Namespace:
     parser.add_argument(
         "--default-orientation",
         default=False,
-        choices=("standard", "rotated"),
+        choices=("standard", "rotated", "landscape", "portrait"),
         help=(
-            'Label orientation, defaults to "standard". '
-            'To turn your text by 90°, state "rotated".'
+            'Label orientation, defaults to "standard"/"landscape". '
+            'To turn your text by 90°, state "rotated"/"portrait".'
         ),
     )
     parser.add_argument(
@@ -125,7 +125,9 @@ def update_configuration_from_parameters(
     if parameters.default_label_size:
         configuration.label.default_size = parameters.default_label_size
     if parameters.default_orientation:
-        configuration.label.default_orientation = parameters.default_orientation
+        configuration.label.default_orientation = normalize_orientation(
+            parameters.default_orientation
+        )
 
     # Configuration issues.
     label_sizes = list(map(attrgetter("identifier"), ALL_LABELS))
