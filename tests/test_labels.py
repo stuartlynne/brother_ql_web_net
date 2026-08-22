@@ -352,6 +352,36 @@ class CreateLabelImageTestCase(TestCase):
                     image.size[1] - bbox[3] + bottom_inset,
                 )
 
+    def test_create_label_image__date_stamp(self) -> None:
+        cases = [
+            ("left", "top", lambda image, bbox: (bbox[0], bbox[1])),
+            (
+                "right",
+                "bottom",
+                lambda image, bbox: (image.size[0] - bbox[2], image.size[1] - bbox[3]),
+            ),
+        ]
+        for horizontal, vertical, margins in cases:
+            with self.subTest(horizontal=horizontal, vertical=vertical):
+                parameters = labels.LabelParameters(
+                    configuration=self.example_configuration,
+                    font_family="DejaVu Serif",
+                    font_style="Book",
+                    text=" ",
+                    font_size=70,
+                    label_size="62x100",
+                    date_stamp=True,
+                    date_stamp_horizontal=horizontal,
+                    date_stamp_vertical=vertical,
+                    date_stamp_text="2026-08-22",
+                )
+                image = labels.create_label_image(parameters)
+                self.addCleanup(image.close)
+                bbox = self._get_content_bbox(image)
+                horizontal_margin, vertical_margin = margins(image, bbox)
+                self.assertLessEqual(horizontal_margin, 4)
+                self.assertLessEqual(vertical_margin, 4)
+
     def test_create_label_images__die_cut_overflow_pages(self) -> None:
         parameters = labels.LabelParameters(
             configuration=self.example_configuration,

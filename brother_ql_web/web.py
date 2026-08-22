@@ -76,6 +76,12 @@ def _save_to_bytes(upload: bottle.FileUpload | None) -> bytes | None:
     return output.getvalue()
 
 
+def _form_bool(value: object) -> bool:
+    if isinstance(value, str):
+        return value.lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
 def get_label_parameters(
     request: bottle.BaseRequest, should_be_file: bool = False
 ) -> LabelParameters:
@@ -137,6 +143,10 @@ def get_label_parameters(
         "margin_right": int(d.get("margin_right", 35)),
         "label_count": int(d.get("label_count", 1)),
         "cut_mode": d.get("cut_mode", "each"),
+        "date_stamp": _form_bool(d.get("date_stamp", False)),
+        "date_stamp_horizontal": d.get("date_stamp_horizontal", "right"),
+        "date_stamp_vertical": d.get("date_stamp_vertical", "bottom"),
+        "date_stamp_text": d.get("date_stamp_text", ""),
         "high_quality": bool(d.get("high_quality", False)),  # TODO: Enable by default.
         "configuration": selected_configuration,
     }

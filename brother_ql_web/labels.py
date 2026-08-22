@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import date
 from io import BytesIO
 from typing import cast, Literal
 
@@ -20,6 +21,9 @@ MIN_TRAILING_PRINTABLE_MARGIN_DOTS = 35
 MIN_LANDSCAPE_RIGHT_PRINTABLE_MARGIN_DOTS = 38
 MIN_PORTRAIT_RIGHT_PRINTABLE_MARGIN_DOTS = 70
 MIN_LANDSCAPE_BOTTOM_PRINTABLE_MARGIN_DOTS = 42
+DATE_STAMP_FONT_SCALE = 0.33
+DATE_STAMP_MIN_FONT_SIZE = 10
+DATE_STAMP_EDGE_MARGIN_DOTS = 1
 
 
 @dataclass
@@ -44,6 +48,10 @@ class LabelParameters:
     margin_right: int = 35
     label_count: int = 1
     cut_mode: str = "each"
+    date_stamp: bool = False
+    date_stamp_horizontal: str = "right"
+    date_stamp_vertical: str = "bottom"
+    date_stamp_text: str = ""
     # TODO: Not yet taken into account. The number of dots in each direction has to be
     #       doubled. The generator/calculation methods have to be updated accordingly.
     high_quality: bool = False
@@ -372,7 +380,40 @@ def _render_text_image(
     draw.multiline_text(
         draw_offset, text, parameters.fill_color, font=image_font, align=align
     )
+    _draw_date_stamp(image, parameters)
     return image
+
+
+def _draw_date_stamp(image: Image.Image, parameters: LabelParameters) -> None:
+    if not parameters.date_stamp:
+        return
+
+    stamp_text = parameters.date_stamp_text or date.today().isoformat()
+    stamp_font_size = max(
+        DATE_STAMP_MIN_FONT_SIZE, int(parameters.font_size * DATE_STAMP_FONT_SCALE)
+    )
+    stamp_font = ImageFont.truetype(parameters.font_path, stamp_font_size)
+    text_left, text_top, text_right, text_bottom = _text_bbox(stamp_text, stamp_font)
+    text_width = text_right - text_left
+    text_height = text_bottom - text_top
+
+    if parameters.date_stamp_horizontal == "left":
+        x = DATE_STAMP_EDGE_MARGIN_DOTS
+    else:
+        x = max(image.size[0] - text_width - DATE_STAMP_EDGE_MARGIN_DOTS, 0)
+
+    if parameters.date_stamp_vertical == "top":
+        y = DATE_STAMP_EDGE_MARGIN_DOTS
+    else:
+        y = max(image.size[1] - text_height - DATE_STAMP_EDGE_MARGIN_DOTS, 0)
+
+    draw = ImageDraw.Draw(image)
+    draw.text(
+        (x - text_left, y - text_top),
+        stamp_text,
+        parameters.fill_color,
+        font=stamp_font,
+    )
 
 
 def create_label_images(parameters: LabelParameters) -> list[Image.Image]:

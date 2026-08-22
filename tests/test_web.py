@@ -116,6 +116,10 @@ class GetLabelParametersTestCase(TestCase):
             margin_right="38",
             label_count="20",
             cut_mode="last",
+            date_stamp="true",
+            date_stamp_horizontal="left",
+            date_stamp_vertical="top",
+            date_stamp_text="2026-08-22",
             high_quality="True",
         )
         request.app.config = {
@@ -141,6 +145,10 @@ class GetLabelParametersTestCase(TestCase):
                 margin_right=38,
                 label_count=20,
                 cut_mode="last",
+                date_stamp=True,
+                date_stamp_horizontal="left",
+                date_stamp_vertical="top",
+                date_stamp_text="2026-08-22",
                 high_quality=True,
                 image=b"",
                 pdf=b"",

@@ -71,14 +71,13 @@
                             </div>
                             <div id="collapseFontSettings" class="collapse show" aria-labelledby="headingFontSettings" data-parent="#accordion">
                                 <div class="chooser card-body">
-                                    <label for="fontFamily">Font Family:</label>
-                                    <select class="form-control" id="fontFamily" onChange="preview()">
-                                        {% for font_family_name in font_family_names %}
-                                            {% for font_style in fonts[font_family_name].keys() %}
-                                        <option {% if label.default_font.style == font_style and label.default_font.family == font_family_name %}selected{% endif %}>{{font_family_name}} ({{ font_style }})</option>
-                                            {% endfor %}
-                                        {% endfor %}
-                                    </select>
+                                    <label for="fontFamilyFilter">Font Family:</label>
+                                    <input id="fontFamilyFilter" class="form-control" type="search" placeholder="Filter families" onInput="filterFontFamilies()">
+                                    <select class="form-control" id="fontFamilySelect" onChange="onFontFamilyChanged()"></select>
+                                    <label for="fontStyleFilter">Font Style:</label>
+                                    <input id="fontStyleFilter" class="form-control" type="search" placeholder="Filter styles" onInput="filterFontStyles()">
+                                    <select class="form-control" id="fontStyleSelect" onChange="preview()"></select>
+                                    <input type="hidden" id="fontFamily" value="{{ label.default_font.family }} ({{ label.default_font.style }})">
                                     <label for="fontSize">Font Size:</label>
                                     <input id="fontSize" class="form-control" type="number" min="1" value="{{ label.default_font_size }}" onChange="preview()" required>
                                     <label for="fontAlign" class="control-label input-group">Font Alignment:</label>
@@ -136,6 +135,19 @@
                                     <div class="input-group marginsLeftRight">
                                         <input id="marginRight" class="form-control marginsLeftRight" type="number" min="0" max="200" value="35" onChange="preview()" required> <span class="input-group-addon">%</span>
                                     </div>
+                                    <label class="btn" style="margin-top: 10px;">
+                                        <input type="checkbox" name="dateStamp" id="dateStamp" onchange="preview()" aria-label="Date Stamp"> Date Stamp
+                                    </label>
+                                    <label for="dateStampHorizontal">Date Horizontal:</label>
+                                    <select class="form-control" id="dateStampHorizontal" onChange="preview()">
+                                        <option value="left">Left</option>
+                                        <option value="right" selected>Right</option>
+                                    </select>
+                                    <label for="dateStampVertical">Date Vertical:</label>
+                                    <select class="form-control" id="dateStampVertical" onChange="preview()">
+                                        <option value="top">Top</option>
+                                        <option value="bottom" selected>Bottom</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -214,6 +226,9 @@
 
 {% block javascript %}
     const PRINTERS = {{ printers_json | safe }};
+    const FONTS = {{ fonts | tojson }};
+    const DEFAULT_FONT_FAMILY = {{ label.default_font.family | tojson }};
+    const DEFAULT_FONT_STYLE = {{ label.default_font.style | tojson }};
     const DEFAULT_LABEL_SIZE = {{ label.default_size | tojson }};
     const SETTINGS_KEY = 'brother_ql_web.labeldesigner.settings';
     let currentPrinterStatus = null;
@@ -225,6 +240,9 @@
 
     function getSelectedOption(id) {
         const selection = document.getElementById(id);
+        if (selection.selectedIndex < 0) {
+            return '';
+        }
         return selection.options[selection.selectedIndex].value;
     }
 
@@ -254,6 +272,100 @@
         return printer.label_sizes.find(function(size) { return size.id === labelSize; }) || null;
     }
 
+    function parseFontSelection(value) {
+        const match = /^(.*) \((.*)\)$/.exec(value || '');
+        if (!match) {
+            return { family: DEFAULT_FONT_FAMILY, style: DEFAULT_FONT_STYLE };
+        }
+        return { family: match[1], style: match[2] };
+    }
+
+    function getFontSelection() {
+        return {
+            family: getSelectedOption('fontFamilySelect'),
+            style: getSelectedOption('fontStyleSelect')
+        };
+    }
+
+    function setFontSelection(family, style) {
+        if (!FONTS[family]) {
+            family = DEFAULT_FONT_FAMILY;
+        }
+        populateFontFamilies(family);
+        if (!FONTS[family][style]) {
+            style = Object.keys(FONTS[family]).sort()[0];
+        }
+        populateFontStyles(family, style);
+        updateFontFamilyValue();
+    }
+
+    function updateFontFamilyValue() {
+        const selection = getFontSelection();
+        document.getElementById('fontFamily').value = selection.family + ' (' + selection.style + ')';
+    }
+
+    function populateFontFamilies(selectedFamily) {
+        const familySelect = document.getElementById('fontFamilySelect');
+        const filter = getValue('fontFamilyFilter').toLowerCase();
+        const families = Object.keys(FONTS).sort().filter(function(family) {
+            return !filter || family.toLowerCase().includes(filter);
+        });
+        familySelect.replaceChildren();
+        for (const family of families) {
+            const option = document.createElement('option');
+            option.value = family;
+            option.textContent = family;
+            option.selected = family === selectedFamily;
+            familySelect.appendChild(option);
+        }
+        if (familySelect.selectedIndex < 0 && familySelect.options.length > 0) {
+            familySelect.selectedIndex = 0;
+        }
+    }
+
+    function populateFontStyles(family, selectedStyle) {
+        const styleSelect = document.getElementById('fontStyleSelect');
+        const filter = getValue('fontStyleFilter').toLowerCase();
+        const styles = Object.keys(FONTS[family] || {}).sort().filter(function(style) {
+            return !filter || style.toLowerCase().includes(filter);
+        });
+        styleSelect.replaceChildren();
+        for (const style of styles) {
+            const option = document.createElement('option');
+            option.value = style;
+            option.textContent = style;
+            option.selected = style === selectedStyle;
+            styleSelect.appendChild(option);
+        }
+        if (styleSelect.selectedIndex < 0 && styleSelect.options.length > 0) {
+            styleSelect.selectedIndex = 0;
+        }
+    }
+
+    function filterFontFamilies() {
+        const selection = getFontSelection();
+        populateFontFamilies(selection.family);
+        if (!getSelectedOption('fontFamilySelect')) {
+            setFontSelection(DEFAULT_FONT_FAMILY, DEFAULT_FONT_STYLE);
+            return;
+        }
+        onFontFamilyChanged();
+    }
+
+    function filterFontStyles() {
+        const selection = getFontSelection();
+        populateFontStyles(selection.family, selection.style);
+        updateFontFamilyValue();
+        preview();
+    }
+
+    function onFontFamilyChanged() {
+        const family = getSelectedOption('fontFamilySelect') || DEFAULT_FONT_FAMILY;
+        populateFontStyles(family, '');
+        updateFontFamilyValue();
+        preview();
+    }
+
     function getSavedSettings() {
         try {
             return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {};
@@ -263,10 +375,11 @@
     }
 
     function saveSettings() {
+        updateFontFamilyValue();
         const settings = {
             printer_id: getSelectedOption('printerSelect'),
             label_size: getSelectedOption('labelSize'),
-            font_family: getSelectedOption('fontFamily'),
+            font_family: getValue('fontFamily'),
             font_size: getValue('fontSize'),
             align: getSelectedRadioButton('fontAlign', 'center'),
             vertical_align: getSelectedRadioButton('verticalAlign', 'center'),
@@ -277,6 +390,9 @@
             margin_right: getValue('marginRight'),
             label_count: getValue('labelCount'),
             cut_mode: getSelectedOption('cutMode'),
+            date_stamp: isChecked('dateStamp'),
+            date_stamp_horizontal: getSelectedOption('dateStampHorizontal'),
+            date_stamp_vertical: getSelectedOption('dateStampVertical'),
             high_quality: isChecked('highQuality'),
             text: getValue('labelText')
         };
@@ -356,7 +472,8 @@
                 }
             }
         }
-        setInputValue('fontFamily', settings.font_family);
+        const fontSelection = parseFontSelection(settings.font_family);
+        setFontSelection(fontSelection.family, fontSelection.style);
         setInputValue('fontSize', settings.font_size);
         setRadioButton('fontAlign', settings.align);
         setRadioButton('verticalAlign', settings.vertical_align);
@@ -367,7 +484,12 @@
         setInputValue('marginRight', settings.margin_right);
         setInputValue('labelCount', settings.label_count);
         setInputValue('cutMode', settings.cut_mode);
+        setInputValue('dateStampHorizontal', settings.date_stamp_horizontal);
+        setInputValue('dateStampVertical', settings.date_stamp_vertical);
         setInputValue('labelText', settings.text);
+        if (settings.date_stamp !== undefined) {
+            document.getElementById('dateStamp').checked = Boolean(settings.date_stamp);
+        }
         if (settings.high_quality !== undefined) {
             document.getElementById('highQuality').checked = Boolean(settings.high_quality);
         }
@@ -481,7 +603,8 @@
         if (text == '') {
             text = ' ';
         }
-        const fontFamily = getSelectedOption('fontFamily');
+        updateFontFamilyValue();
+        const fontFamily = getValue('fontFamily');
         const fontSize = getValue('fontSize');
         const labelSize = getSelectedOption('labelSize');
         const align = getSelectedRadioButton('fontAlign', 'center');
@@ -493,6 +616,9 @@
         const marginRight = getValue('marginRight');
         const labelCount = getValue('labelCount');
         const cutMode = getSelectedOption('cutMode');
+        const dateStamp = isChecked('dateStamp');
+        const dateStampHorizontal = getSelectedOption('dateStampHorizontal');
+        const dateStampVertical = getSelectedOption('dateStampVertical');
         const highQuality = isChecked('highQuality');
         const printerId = getSelectedOption('printerSelect');
 
@@ -511,6 +637,9 @@
         data.append('margin_right', marginRight);
         data.append('label_count', labelCount);
         data.append('cut_mode', cutMode);
+        data.append('date_stamp', dateStamp);
+        data.append('date_stamp_horizontal', dateStampHorizontal);
+        data.append('date_stamp_vertical', dateStampVertical);
         data.append('high_quality', highQuality);
         return data;
     }
@@ -572,6 +701,7 @@
         request.send(formData());
     }
 
+    setFontSelection(DEFAULT_FONT_FAMILY, DEFAULT_FONT_STYLE);
     restoreSettings();
     updateRadioButtonGroups();
     populateLabelSizes(getSavedSettings().label_size);
