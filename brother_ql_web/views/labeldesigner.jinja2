@@ -496,10 +496,62 @@
         resizeTextBox();
     }
 
+    function syncTextBoxAlignment() {
+        const textBox = document.getElementById('labelText');
+        const horizontal = getSelectedRadioButton('fontAlign', 'center');
+        const vertical = getSelectedRadioButton('verticalAlign', 'center');
+
+        textBox.style.textAlign = horizontal;
+        textBox.style.paddingTop = '';
+        textBox.style.paddingBottom = '';
+
+        const style = window.getComputedStyle(textBox);
+        const basePaddingTop = parseFloat(style.getPropertyValue('padding-top')) || 0;
+        const basePaddingBottom = parseFloat(style.getPropertyValue('padding-bottom')) || 0;
+        const contentHeight = measureTextBoxContentHeight(textBox, style);
+        const availableExtra = Math.max(
+            textBox.clientHeight - basePaddingTop - basePaddingBottom - contentHeight,
+            0
+        );
+        if (vertical === 'bottom') {
+            textBox.style.paddingTop = (basePaddingTop + availableExtra) + 'px';
+            textBox.style.paddingBottom = basePaddingBottom + 'px';
+        } else if (vertical === 'center') {
+            textBox.style.paddingTop = (basePaddingTop + availableExtra / 2) + 'px';
+            textBox.style.paddingBottom = (basePaddingBottom + availableExtra / 2) + 'px';
+        }
+    }
+
+    function measureTextBoxContentHeight(textBox, style) {
+        const mirror = document.createElement('div');
+        mirror.style.position = 'absolute';
+        mirror.style.visibility = 'hidden';
+        mirror.style.whiteSpace = 'pre-wrap';
+        mirror.style.overflowWrap = 'break-word';
+        mirror.style.boxSizing = 'border-box';
+        mirror.style.width = textBox.clientWidth + 'px';
+        mirror.style.fontFamily = style.getPropertyValue('font-family');
+        mirror.style.fontSize = style.getPropertyValue('font-size');
+        mirror.style.fontWeight = style.getPropertyValue('font-weight');
+        mirror.style.fontStyle = style.getPropertyValue('font-style');
+        mirror.style.lineHeight = style.getPropertyValue('line-height');
+        mirror.style.letterSpacing = style.getPropertyValue('letter-spacing');
+        mirror.style.padding = '0';
+        mirror.style.border = '0';
+        mirror.textContent = textBox.value || ' ';
+        document.body.appendChild(mirror);
+        const height = mirror.scrollHeight;
+        mirror.remove();
+        return height;
+    }
+
     function resizeTextBox() {
         const textBox = document.getElementById('labelText');
+        textBox.style.paddingTop = '';
+        textBox.style.paddingBottom = '';
         textBox.style.height = 'auto';
-        textBox.style.height = textBox.scrollHeight + 'px';
+        textBox.style.height = Math.max(textBox.scrollHeight, 160) + 'px';
+        syncTextBoxAlignment();
     }
 
     function populateLabelSizes(preferredLabelSize) {
@@ -660,8 +712,8 @@
     }
 
     function preview() {
-        resizeTextBox();
         updateContinuousRollControls();
+        resizeTextBox();
         saveSettings();
 
         const request = new XMLHttpRequest();

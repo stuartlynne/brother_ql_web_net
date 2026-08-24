@@ -37,6 +37,8 @@
 }
 
 textarea#labelText {
+    box-sizing: border-box;
+    min-height: 160px;
     resize: none;
 }
 
