@@ -17,6 +17,17 @@ HOSTNAME_OID = ".1.3.6.1.2.1.1.5.0"
 BUSY_STATUSES = {"PRINTING", "BUSY"}
 
 
+def _form_factors(*names: str) -> tuple[FormFactor, ...]:
+    return tuple(
+        form_factor
+        for name in names
+        if (form_factor := getattr(FormFactor, name, None)) is not None
+    )
+
+
+CONTINUOUS_FORM_FACTORS = _form_factors("ENDLESS", "PTOUCH_ENDLESS")
+
+
 @dataclass
 class PrinterStatus:
     printer_id: str
@@ -151,7 +162,7 @@ def label_sizes_for_model(model: str) -> list[dict[str, str | bool]]:
         if restricted and model not in restricted:
             continue
         form_factor = label.form_factor
-        continuous = form_factor in (FormFactor.ENDLESS, FormFactor.PTOUCH_ENDLESS)
+        continuous = form_factor in CONTINUOUS_FORM_FACTORS
         sizes.append(
             {
                 "id": label.identifier,

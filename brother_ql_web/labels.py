@@ -15,7 +15,15 @@ from PIL import Image, ImageDraw, ImageFont
 logger = logging.getLogger(__name__)
 del logging
 
-CONTINUOUS_FORM_FACTORS = (FormFactor.ENDLESS, FormFactor.PTOUCH_ENDLESS)
+def _form_factors(*names: str) -> tuple[FormFactor, ...]:
+    return tuple(
+        form_factor
+        for name in names
+        if (form_factor := getattr(FormFactor, name, None)) is not None
+    )
+
+
+CONTINUOUS_FORM_FACTORS = _form_factors("ENDLESS", "PTOUCH_ENDLESS")
 MIN_PRINTABLE_MARGIN_DOTS = 12
 MIN_TRAILING_PRINTABLE_MARGIN_DOTS = 35
 MIN_LANDSCAPE_RIGHT_PRINTABLE_MARGIN_DOTS = 38
