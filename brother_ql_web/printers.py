@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import threading
 from dataclasses import dataclass, field
+from queue import Queue
 from time import sleep, time
 from typing import Any
 
@@ -14,6 +15,8 @@ MEDIA_OID = ".1.3.6.1.2.1.43.8.2.1.12.1.1"
 PAGE_COUNT_OID = ".1.3.6.1.2.1.43.10.2.1.4.1.1"
 SYS_DESCR_OID = ".1.3.6.1.2.1.1.1.0"
 HOSTNAME_OID = ".1.3.6.1.2.1.1.5.0"
+MODEL_OID = ".1.3.6.1.2.1.25.3.2.1.3.1"
+SERIAL_NUMBER_OID = ".1.3.6.1.2.1.43.5.1.1.17.1"
 BUSY_STATUSES = {"PRINTING", "BUSY"}
 
 
@@ -68,9 +71,12 @@ class PrinterStatus:
 class PrinterStatusCache:
     printers: list[PrinterConfiguration]
     interval: float = 2.0
+    discovery_enabled: bool = False
+    discovery_interval: float = 10.0
     statuses: dict[str, PrinterStatus] = field(default_factory=dict)
     _stop: threading.Event = field(default_factory=threading.Event)
     _thread: threading.Thread | None = None
+    _last_discovery: float = 0.0
 
     def start(self) -> None:
         if self._thread is not None:
@@ -94,11 +100,31 @@ class PrinterStatusCache:
 
     def _run(self) -> None:
         while not self._stop.is_set():
+            self._refresh_discovered_printers()
             for printer in self.printers:
                 if self._stop.is_set():
                     return
                 self.statuses[printer.identifier] = read_status(printer)
             sleep(self.interval)
+
+    def _refresh_discovered_printers(self) -> None:
+        if not self.discovery_enabled:
+            return
+        if time() - self._last_discovery < self.discovery_interval:
+            return
+        self._last_discovery = time()
+        discovered = discover_network_printers()
+        known = {printer.identifier: printer for printer in self.printers}
+        for printer in discovered:
+            if printer.identifier in known:
+                known[printer.identifier].printer = printer.printer
+                known[printer.identifier].name = printer.name
+                known[printer.identifier].model = printer.model
+                continue
+            self.printers.append(printer)
+            self.statuses[printer.identifier] = PrinterStatus(
+                printer_id=printer.identifier
+            )
 
 
 def read_status(printer: PrinterConfiguration) -> PrinterStatus:
@@ -140,6 +166,94 @@ def read_status(printer: PrinterConfiguration) -> PrinterStatus:
         status.status = "UNAVAILABLE"
         status.error = str(e)
     return status
+
+
+def discover_network_printers() -> list[PrinterConfiguration]:
+    try:
+        from qlmux.discovery import DiscoveryThread
+    except Exception:
+        return []
+
+    discovered: dict[str, PrinterConfiguration] = {}
+    stop_event = threading.Event()
+    change_event = threading.Event()
+    discovery_queue: Queue[tuple[str, object, object, object, object]] = Queue()
+    threads = [
+        DiscoveryThread(
+            name="brother_ql_web_net_discovery_v1",
+            av="v1",
+            snmpDiscoveredQueue=discovery_queue,
+            stopEvent=stop_event,
+            changeEvent=change_event,
+        ),
+        DiscoveryThread(
+            name="brother_ql_web_net_discovery_v2c",
+            av="v2c",
+            snmpDiscoveredQueue=discovery_queue,
+            stopEvent=stop_event,
+            changeEvent=change_event,
+        ),
+    ]
+    for thread in threads:
+        thread.daemon = True
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=7.0)
+    stop_event.set()
+
+    while not discovery_queue.empty():
+        host, hostname, sysdescr, mac_address, serial_number = discovery_queue.get()
+        sysdescr_text = _safe_snmp_value(sysdescr)
+        if "Brother" not in sysdescr_text:
+            continue
+        info = read_printer_info(host)
+        model = _model_from_text(info.get("model", "") or sysdescr_text)
+        if not model:
+            continue
+        identifier = (
+            _safe_snmp_value(serial_number)
+            or info.get("serial_number", "")
+            or _safe_snmp_value(mac_address)
+            or host
+        )
+        name = _safe_snmp_value(hostname) or identifier
+        discovered[identifier] = PrinterConfiguration(
+            id=identifier,
+            name=f"{model} - {name}",
+            model=model,
+            printer=f"tcp://{host}:9100",
+        )
+    return list(discovered.values())
+
+
+def read_printer_info(host: str) -> dict[str, str]:
+    try:
+        from easysnmp import Session
+
+        session = Session(
+            hostname=host,
+            community="public",
+            version=1,
+            timeout=0.2,
+            retries=0,
+            use_sprint_value=False,
+            use_numeric=False,
+            use_long_names=True,
+        )
+        values = session.get([MODEL_OID, SERIAL_NUMBER_OID])
+        return {
+            "model": _safe_snmp_value(values[0].value).strip(),
+            "serial_number": _safe_snmp_value(values[1].value).strip(),
+        }
+    except Exception:
+        return {}
+
+
+def _model_from_text(value: str) -> str:
+    match = re.search(r"\bQL[-\s]?(\d{3,4}[A-Z]*)\b", value, flags=re.IGNORECASE)
+    if not match:
+        return ""
+    return f"QL-{match.group(1).upper()}"
 
 
 def _safe_snmp_value(value: object) -> str:

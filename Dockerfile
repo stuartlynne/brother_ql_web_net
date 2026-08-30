@@ -10,4 +10,4 @@ RUN pip install .
 
 EXPOSE 8013
 
-CMD [ "python", "-m", "brother_ql_web", "--configuration", "config.json" ]
+CMD [ "brother_ql_web_net" ]

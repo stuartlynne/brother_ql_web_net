@@ -6,6 +6,7 @@ from typing import cast, Union
 
 from brother_ql_web.configuration import (
     Configuration,
+    DiscoveryConfiguration,
     Font,
     LabelConfiguration,
     PrinterConfiguration,
@@ -105,6 +106,7 @@ class ConfigurationTestCase(TestCase):
                 ),
                 configuration.website,
             )
+            self.assertEqual(DiscoveryConfiguration(), configuration.discovery)
 
     def test_from_json__too_many_keys(self) -> None:
         with NamedTemporaryFile(suffix=".json", mode="w+t") as json_file:
@@ -136,8 +138,9 @@ class ConfigurationTestCase(TestCase):
             json_file.write(json.dumps(data))
             json_file.seek(0)
 
-            with self.assertRaisesRegex(ValueError, r"^Printer configuration missing$"):
-                Configuration.from_json(json_file.name)
+            configuration = Configuration.from_json(json_file.name)
+            self.assertIsNone(configuration.printer)
+            self.assertEqual([], configuration.printers)
 
     def test_from_json__printers(self) -> None:
         with NamedTemporaryFile(suffix=".json", mode="w+t") as json_file:

@@ -1,0 +1,27 @@
+{
+  "server": {
+    "port": 8013,
+    "host": "",
+    "log_level": "WARNING",
+    "additional_font_folder": ""
+  },
+  "discovery": {
+    "enabled": true,
+    "interval": 10.0
+  },
+  "label": {
+    "default_size": "62x100",
+    "default_orientation": "landscape",
+    "default_font_size": 70,
+    "default_fonts": [
+      {"family": "DejaVu Serif", "style": "Book"},
+      {"family": "FreeSans", "style": "Regular"},
+      {"family": "Noto Sans", "style": "Regular"}
+    ]
+  },
+  "website": {
+    "html_title": "Brother QL Web Net",
+    "page_title": "Brother QL Web Net",
+    "page_headline": "Design your label and print it..."
+  }
+}

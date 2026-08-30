@@ -225,7 +225,7 @@
 {% endblock %}
 
 {% block javascript %}
-    const PRINTERS = {{ printers_json | safe }};
+    let PRINTERS = {{ printers_json | safe }};
     const FONTS = {{ fonts | tojson }};
     const DEFAULT_FONT_FAMILY = {{ label.default_font.family | tojson }};
     const DEFAULT_FONT_STYLE = {{ label.default_font.style | tojson }};
@@ -560,6 +560,9 @@
         const previous = preferredLabelSize || labelSize.value || DEFAULT_LABEL_SIZE;
         const loaded = currentPrinterStatus && currentPrinterStatus.media_label_size;
         const selected = loaded || previous;
+        if (!printer) {
+            return false;
+        }
         labelSize.replaceChildren();
 
         for (const size of printer.label_sizes) {
@@ -610,26 +613,59 @@
         panel.appendChild(box);
     }
 
+    function renderNoPrinters() {
+        currentPrinterStatus = null;
+        const panel = document.getElementById('printerStatusPanel');
+        panel.replaceChildren();
+        const box = document.createElement('div');
+        box.className = 'alert alert-warning';
+        const icon = document.createElement('i');
+        icon.className = 'bi-exclamation-triangle-fill';
+        box.appendChild(icon);
+        const text = document.createElement('span');
+        text.textContent = 'No printers discovered';
+        box.appendChild(text);
+        panel.appendChild(box);
+    }
+
+    function populatePrinters(printers, preferredPrinterId) {
+        PRINTERS = printers;
+        const printerSelect = document.getElementById('printerSelect');
+        const previous = preferredPrinterId || printerSelect.value;
+        printerSelect.replaceChildren();
+        for (const printer of PRINTERS) {
+            const option = document.createElement('option');
+            option.value = printer.id;
+            option.textContent = printer.name;
+            option.selected = printer.id === previous;
+            printerSelect.appendChild(option);
+        }
+        if (printerSelect.selectedIndex < 0 && printerSelect.options.length > 0) {
+            printerSelect.selectedIndex = 0;
+        }
+        return printerSelect.value !== previous;
+    }
+
     function refreshPrinters() {
         const request = new XMLHttpRequest();
         request.addEventListener('load', function() {
             const response = JSON.parse(this.response);
+            const changedPrinter = populatePrinters(response.printers, getSelectedOption('printerSelect'));
+            if (response.printers.length === 0) {
+                renderNoPrinters();
+                saveSettings();
+                return;
+            }
             const selectedPrinter = getSelectedOption('printerSelect');
             const printer = response.printers.find(function(item) {
                 return item.id === selectedPrinter;
             });
             if (printer) {
-                const localPrinter = PRINTERS.find(function(item) {
-                    return item.id === selectedPrinter;
-                });
-                if (localPrinter) {
-                    localPrinter.status = printer.status;
-                }
                 renderPrinterStatus(printer.status);
                 const changed = populateLabelSizes();
                 updateContinuousRollControls();
                 saveSettings();
-                if (changed) {
+                if (changed || changedPrinter) {
                     preview();
                 }
             }
@@ -756,9 +792,12 @@
     setFontSelection(DEFAULT_FONT_FAMILY, DEFAULT_FONT_STYLE);
     restoreSettings();
     updateRadioButtonGroups();
+    populatePrinters(PRINTERS, getSavedSettings().printer_id);
     populateLabelSizes(getSavedSettings().label_size);
     if (getPrinter() && getPrinter().status) {
         renderPrinterStatus(getPrinter().status);
+    } else if (!getPrinter()) {
+        renderNoPrinters();
     }
     refreshPrinters();
     printerStatusTimer = window.setInterval(refreshPrinters, 2000);

@@ -5,7 +5,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "brother-ql-web"
+name = "brother-ql-web-net"
 description = "Simple label designer API and web API for Brother QL label printers"
 version = "0.5.0"
 license = "GPL-3.0-only"
@@ -43,13 +43,13 @@ dependencies = [
 ]
 
 [project.scripts]
-brother_ql_web = "brother_ql_web.__main__:main"
+brother_ql_web_net = "brother_ql_web.__main__:main"
 
 [project.urls]
-Homepage = "https://github.com/FriedrichFroebel/brother_ql_web/"
-Repository = "https://github.com/FriedrichFroebel/brother_ql_web/"
-Issues = "https://github.com/FriedrichFroebel/brother_ql_web//issues"
-Changelog = "https://github.com/FriedrichFroebel/brother_ql_web/blob/master/CHANGELOG.md"
+Homepage = "https://github.com/stuartlynne/brother_ql_web_net/"
+Repository = "https://github.com/stuartlynne/brother_ql_web_net/"
+Issues = "https://github.com/stuartlynne/brother_ql_web_net/issues"
+Changelog = "https://github.com/stuartlynne/brother_ql_web_net/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 snmp = [

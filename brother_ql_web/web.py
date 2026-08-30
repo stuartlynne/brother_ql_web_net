@@ -122,6 +122,7 @@ def get_label_parameters(
         label=configuration.label,
         website=configuration.website,
         printers=configuration.printers,
+        discovery=configuration.discovery,
     )
 
     context = {
@@ -204,6 +205,9 @@ def print_text() -> dict[str, bool | str]:
     if parameters.text is None:
         return_dict["error"] = "Please provide the text for the label"
         return return_dict
+    if parameters.configuration.printer is None:
+        return_dict["message"] = "No printer selected"
+        return return_dict
 
     qlr = generate_label(
         parameters=parameters,
@@ -231,6 +235,9 @@ def print_image() -> dict[str, bool | str]:
 
     if parameters.image is None or not parameters.image:
         return_dict["error"] = "Please provide the label image"
+        return return_dict
+    if parameters.configuration.printer is None:
+        return_dict["message"] = "No printer selected"
         return return_dict
 
     qlr = generate_label(
@@ -270,6 +277,8 @@ def _print(parameters: LabelParameters, qlr: BrotherQLRaster) -> dict[str, bool 
 
 def _wait_for_printer(parameters: LabelParameters) -> tuple[str, bool]:
     printer = parameters.configuration.printer
+    if printer is None:
+        return "No printer selected", False
     if not printer.snmp_enabled or not printer.printer.startswith("tcp://"):
         return "", False
 
@@ -292,6 +301,8 @@ def _current_printer_status(
     parameters: LabelParameters, fresh: bool = False
 ) -> PrinterStatus:
     printer = parameters.configuration.printer
+    if printer is None:
+        return PrinterStatus(printer_id="", status="UNAVAILABLE", error="No printer selected")
     status_cache = cast(
         PrinterStatusCache | None, get_config("brother_ql_web.status_cache")
     )
@@ -334,7 +345,11 @@ def main(
     app.config["brother_ql_web.fonts"] = fonts
     app.config["brother_ql_web.label_sizes"] = label_sizes
     app.config["brother_ql_web.backend_class"] = backend_class
-    status_cache = PrinterStatusCache(configuration.printers)
+    status_cache = PrinterStatusCache(
+        configuration.printers,
+        discovery_enabled=configuration.discovery.enabled,
+        discovery_interval=configuration.discovery.interval,
+    )
     status_cache.start()
     app.config["brother_ql_web.status_cache"] = status_cache
     bottle.TEMPLATE_PATH.append(CURRENT_DIRECTORY / "views")

@@ -17,27 +17,31 @@ def normalize_orientation(value: str) -> str:
 @dataclass
 class Configuration:
     server: ServerConfiguration
-    printer: PrinterConfiguration
+    printer: PrinterConfiguration | None
     label: LabelConfiguration
     website: WebsiteConfiguration
     printers: list[PrinterConfiguration] = dataclass_field(default_factory=list)
+    discovery: DiscoveryConfiguration = dataclass_field(
+        default_factory=lambda: DiscoveryConfiguration()
+    )
 
     @classmethod
     def from_json(cls, json_file: str) -> Configuration:
         with open(json_file) as fd:
             parsed: dict[str, Any] = json.load(fd)
         server = ServerConfiguration(**parsed.pop("server", {}))
+        discovery = DiscoveryConfiguration(**parsed.pop("discovery", {}))
 
         printer_data = parsed.pop("printer", None)
         printers_data = parsed.pop("printers", [])
-        if not printer_data and not printers_data:
-            raise ValueError("Printer configuration missing")
         if printer_data:
             printer = PrinterConfiguration(**printer_data)
-        else:
+        elif printers_data:
             printer = PrinterConfiguration(**printers_data[0])
+        else:
+            printer = None
         printers = [PrinterConfiguration(**item) for item in printers_data]
-        if not printers:
+        if not printers and printer is not None:
             printers = [printer]
 
         label = LabelConfiguration(**parsed.pop("label", {}))
@@ -50,20 +54,24 @@ class Configuration:
             label=label,
             website=website,
             printers=printers,
+            discovery=discovery,
         )
 
     def to_json(self) -> str:
         data = {
             "server": self.server,
-            "printer": _to_jsonable(self.printer),
-            "label": self.label,
-            "website": self.website,
         }
+        if self.printer is not None:
+            data["printer"] = _to_jsonable(self.printer)
+        data["label"] = self.label
+        data["website"] = self.website
+        if self.discovery != DiscoveryConfiguration():
+            data["discovery"] = self.discovery
         if self.printers and self.printers != [self.printer]:
             data["printers"] = [_to_jsonable(printer) for printer in self.printers]
         return json.dumps(data, indent=2, default=lambda o: o.__dict__)
 
-    def printer_by_id(self, printer_id: str | None) -> PrinterConfiguration:
+    def printer_by_id(self, printer_id: str | None) -> PrinterConfiguration | None:
         if not printer_id:
             return self.printer
         for printer in self.printers:
@@ -82,6 +90,12 @@ class ServerConfiguration:
     @property
     def is_in_debug_mode(self) -> bool:
         return self.log_level == "DEBUG"
+
+
+@dataclass
+class DiscoveryConfiguration:
+    enabled: bool = True
+    interval: float = 10.0
 
 
 @dataclass

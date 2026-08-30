@@ -485,6 +485,8 @@ def generate_label(
     if parameters.high_quality:
         logger.warning("High quality mode is not implemented for now.")
 
+    if configuration.printer is None:
+        raise ValueError("No printer selected")
     qlr = BrotherQLRaster(configuration.printer.model)
     label_images = images * parameters.label_count
     create_label(

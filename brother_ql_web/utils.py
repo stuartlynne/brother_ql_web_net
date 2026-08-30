@@ -26,6 +26,8 @@ class BackendGuessingError(ValueError):
 
 
 def get_backend_class(configuration: Configuration) -> BACKEND_TYPE:
+    if configuration.printer is None:
+        return BrotherQLBackendGeneric
     try:
         selected_backend = guess_backend(configuration.printer.printer)
     except ValueError:

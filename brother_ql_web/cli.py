@@ -1,18 +1,36 @@
 from __future__ import annotations
 
 import logging
+import os
 import random
 import sys
 from argparse import ArgumentParser, Namespace
+from importlib.resources import files
 from operator import attrgetter
 from typing import cast
 
 from brother_ql.labels import ALL_LABELS
 from brother_ql.models import ALL_MODELS
-from brother_ql_web.configuration import Configuration, Font, normalize_orientation
+from brother_ql_web.configuration import (
+    Configuration,
+    Font,
+    PrinterConfiguration,
+    normalize_orientation,
+)
 from brother_ql_web.utils import collect_fonts
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_CONFIGURATION_PATH = "/etc/brother_ql_web_net/config.json"
+
+
+def default_configuration_path() -> str:
+    configured = os.environ.get("BROTHER_QL_WEB_NET_CONFIG")
+    if configured:
+        return configured
+    if os.path.exists(DEFAULT_CONFIGURATION_PATH):
+        return DEFAULT_CONFIGURATION_PATH
+    return str(files("brother_ql_web") / "config.json")
 
 
 def log_level_type(value: str) -> int:
@@ -61,7 +79,7 @@ def get_parameters() -> Namespace:
     )
     parser.add_argument(
         "--configuration",
-        required=True,
+        default=default_configuration_path(),
         type=str,
         help="Path to the configuration file to get the basic values from.",
     )
@@ -117,8 +135,16 @@ def update_configuration_from_parameters(
 
     # Printer configuration.
     if parameters.printer:
-        configuration.printer.printer = parameters.printer
+        if configuration.printer is None:
+            configuration.printer = PrinterConfiguration(
+                model=parameters.model or "QL-710W", printer=parameters.printer
+            )
+            configuration.printers.append(configuration.printer)
+        else:
+            configuration.printer.printer = parameters.printer
     if parameters.model:
+        if configuration.printer is None:
+            raise ValueError("Cannot set a printer model without a printer")
         configuration.printer.model = parameters.model
 
     # Label configuration.
